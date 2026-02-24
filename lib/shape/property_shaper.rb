@@ -22,16 +22,14 @@ module Shape
   #   end
   class PropertyShaper
     include Shape::Base::ClassMethods
-
     attr_accessor :name
     attr_accessor :shaper_context
     attr_accessor :options
 
-    def initialize(shaper_context, name, options={}, &block)
+    def initialize(shaper_context, name, options = {}, &block)
       self.shaper_context = shaper_context
       self.name = name
       self.options = options
-
       if block
         instance_eval(&block)
       else
@@ -66,7 +64,6 @@ module Shape
     end
 
     protected
-
     def define_block(type, &block)
       options[type] = Class.new do
         include Shape
@@ -76,30 +73,40 @@ module Shape
     end
 
     def define_accessor(name, source_name)
-      if !shaper_context.method_defined?(name.to_sym)
-        _options = self.options
-        self.define_from do
-          return nil unless _source
-          result = begin
-            _source_object = (name == source_name ? _source : self)
+      return if shaper_context.method_defined?(name.to_sym)
 
-            if _source_object.respond_to?(source_name)
-              _source_object.send(source_name)
-            elsif _source.respond_to?(:[])
-              _source.send(:[], source_name.to_sym) || _source.send(:[], source_name.to_s)
-            end
+      options = self.options
+      fetch_from_hash = ->(source, key) do
+        if source.respond_to?(:key?)
+          source.key?(key.to_sym) ? source[key.to_sym] : (source.key?(key.to_s) ? source[key.to_s] : nil)
+        else
+          source[key.to_sym] || source[key.to_s]
+        end
+      end
 
-          end
-          if !result.nil? && with = _options[:with]
-            with.shape(result, parent: self)
-          elsif each_with = _options[:each_with]
-            each_with.shape_collection(result, parent: self, sort_by: _options[:sort_by])
-          else
-            result
-          end
+      fetch_value = ->(self_context, source_context) do
+        source_object = (name == source_name ? source_context : self_context)
+        if source_object.respond_to?(source_name)
+          source_object.send(source_name)
+        elsif source_context.respond_to?(:[])
+          fetch_from_hash.call(source_context, source_name)
+        else
+          nil
+        end
+      end
+
+      define_from do
+        return nil unless _source
+
+        result = fetch_value.call(self, _source)
+        if !result.nil? && (with = options[:with])
+          with.shape(result, parent: self)
+        elsif (each_with = options[:each_with])
+          each_with.shape_collection(result, parent: self, sort_by: options[:sort_by])
+        else
+          result
         end
       end
     end
-
   end
 end
