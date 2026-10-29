@@ -563,7 +563,7 @@ describe Shape::PropertyShaper do
         property :children, each_with: SimpleDecorator
       end
 
-      expect(instance_two.children.map(&:name)).to contain_exactly('Zoe', 'Adam')
+      expect(instance_two.children.map(&:name)).to match_array %w[Zoe Adam]
     end
 
     it 'sorts shaped collection by provided attribute' do
